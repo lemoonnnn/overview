@@ -1,0 +1,566 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>驾驶舱原型 - 战略总览</title>
+  <!-- ECharts -->
+  <script src="echarts.min.js"></script>
+  <style>
+    :root{
+      --bg:#0b1020;--panel:#0f1530;--card:#131a3a;--text:#e5ecff;--muted:#93a1c4;--accent:#5dd6ff;--ok:#2ecc71;--warn:#f39c12;--bad:#e74c3c;
+    }
+    *{box-sizing:border-box}
+    body{margin:0;background:radial-gradient(1200px 600px at 10% 0%,#111a3a 0%,#0b1020 40%,#070b17 100%);color:var(--text);font-family:Inter,system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial}
+    .topbar{display:flex;align-items:center;gap:12px;padding:14px 16px;border-bottom:1px solid rgba(255,255,255,.06);backdrop-filter: blur(6px);position:sticky;top:0;z-index:10}
+    .brand{font-weight:700;letter-spacing:.5px}
+    .tag{font-size:12px;padding:2px 8px;border:1px solid rgba(255,255,255,.15);border-radius:999px;color:var(--muted)}
+    .btns{display:flex;gap:8px;margin-left:auto}
+    .btn{
+      cursor:pointer;padding:10px 14px;border-radius:10px;background:linear-gradient(180deg,rgba(255,255,255,.06),rgba(255,255,255,.02));
+      border:1px solid rgba(255,255,255,.12);color:var(--text);font-weight:600;font-size:14px;box-shadow:inset 0 1px 0 rgba(255,255,255,.06);
+      transition:all .18s ease
+    }
+    .btn:hover{transform:translateY(-1px);box-shadow:0 6px 14px rgba(0,0,0,.25), inset 0 1px 0 rgba(255,255,255,.08)}
+    .btn.active{outline:2px solid var(--accent);background:linear-gradient(180deg,rgba(93,214,255,.18),rgba(93,214,255,.06))}
+
+    /* 修改布局：三列 */
+    .layout{
+      display:grid;
+      grid-template-columns: 1fr 2fr 1fr;
+      gap:12px;
+      padding:12px;
+      align-items:start;
+    }
+    #map{
+      min-height:680px;
+      border-radius:14px;
+      background:var(--panel);
+      border:1px solid rgba(255,255,255,.08)
+    }
+
+    .panel{background:var(--panel);border:1px solid rgba(255,255,255,.08);border-radius:14px;padding:12px}
+    .panel h3{margin:0 0 8px;font-size:16px;letter-spacing:.3px;color:#cfe6ff}
+
+    .kpis{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+    .kpi{background:var(--card);padding:10px;border-radius:12px;border:1px solid rgba(255,255,255,.08)}
+    .kpi .label{font-size:12px;color:var(--muted)}
+    .kpi .value{font-size:22px;font-weight:800;margin-top:4px}
+    .kpi .delta{font-size:12px;margin-top:4px}
+
+    .progress{height:6px;background:rgba(255,255,255,.08);border-radius:999px;overflow:hidden;margin-top:8px}
+    .progress>span{display:block;height:100%;background:linear-gradient(90deg,var(--accent),#8bffea)}
+
+    .charts{display:grid;grid-template-columns:1fr;gap:10px}
+    #trend,#gauge{height:150px;background:var(--card);border-radius:12px;border:1px solid rgba(255,255,255,.08)}
+
+    .finance{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px}
+    .fin-card{background:var(--card);padding:12px;border-radius:12px;border:1px solid rgba(255,255,255,.08);cursor:pointer}
+    .fin-card:hover{outline:2px solid rgba(93,214,255,.4)}
+    .fin-card .name{font-size:12px;color:var(--muted)}
+    .fin-card .val{font-weight:800;font-size:18px;margin-top:4px}
+
+    .bar{display:flex;align-items:center;gap:10px}
+    .switch{margin-left:8px;display:inline-flex;gap:6px;align-items:center}
+    .switch input{accent-color:#4fd1ff}
+
+    /* modal */
+    .modal-mask{position:fixed;inset:0;background:rgba(0,0,0,.5);display:none;align-items:center;justify-content:center;z-index:50}
+    .modal{width:min(920px,92vw);background:#0f1632;border:1px solid rgba(255,255,255,.1);border-radius:16px;padding:14px}
+    .modal .head{display:flex;justify-content:space-between;align-items:center}
+    .modal .head h4{margin:0}
+    .close{cursor:pointer;background:transparent;border:1px solid rgba(255,255,255,.2);border-radius:8px;color:#fff;padding:6px 10px}
+    #detailChart{height:340px;margin-top:8px;background:var(--card);border:1px solid rgba(255,255,255,.08);border-radius:12px}
+    #projectDetail{display:grid;grid-template-columns:1.2fr 1fr;gap:10px}
+    .detail-list{padding:8px 10px;background:var(--card);border-radius:12px;border:1px solid rgba(255,255,255,.08)}
+    .detail-list h5{margin:0 0 6px}
+    .detail-list ul{margin:0;padding-left:16px}
+  </style>
+</head>
+<body>
+  <div class="topbar">
+    <div class="brand">东湖高新集团项目运营总览平台</div>
+    <span class="tag">动态响应</span>
+    <div class="btns" id="layerBtns"></div>
+  </div>
+
+  <div class="layout">
+    <!-- 左侧：财务指标 -->
+    <div class="panel">
+      <h3>财务指标 · 价值洞察区（点击查看构成/趋势）</h3>
+      <div class="finance" id="financeCards"></div>
+    </div>
+
+    <!-- 中间：地图 -->
+    <div id="map"></div>
+
+    <!-- 右侧：运营指标 -->
+    <div class="panel">
+      <div class="bar">
+        <h3>运营指标 · 动态指标区</h3>
+        <label class="switch" title="切换点位/热力">
+          <input type="checkbox" id="heatToggle" /> 聚合热力
+        </label>
+      </div>
+      <div class="kpis" id="coreKpis"></div>
+      <div class="charts">
+        <div id="gauge"></div>
+        <div id="trend"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 详情弹窗 -->
+  <div class="modal-mask" id="modalMask">
+    <div class="modal">
+      <div class="head">
+        <h4 id="modalTitle">详情</h4>
+        <button class="close" id="modalClose">关闭</button>
+      </div>
+      <div id="detailContent">
+        <div id="detailChart"></div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // ---------------- Mock 数据定义 ----------------
+    const layers = [
+      { key:'park', name:'产业园区' },
+      { key:'waste', name:'污水处理' },
+      { key:'desulfur', name:'脱硫脱硝' },
+      { key:'energy', name:'节能降耗' },
+      { key:'mna', name:'数字科技并购' }
+    ];
+
+    // 项目点位（示例，坐标为 [经度,纬度]）
+    const projects = {
+      park: [
+        {name:'苏南智造园', city:'苏州市', province:'江苏省', coord:[120.5853,31.2989], status:'在建', kpis:{build:6, tenants:120, occupancy:0.78, growth:0.22}},
+        {name:'粤港科创城', city:'深圳市', province:'广东省', coord:[114.0579,22.5431], status:'运营', kpis:{build:2, tenants:340, occupancy:0.91, growth:0.18}},
+        {name:'京北创新港', city:'北京市', province:'北京市', coord:[116.4074,39.9042], status:'运营', kpis:{build:1, tenants:280, occupancy:0.86, growth:0.15}},
+      ],
+      waste:[
+        {name:'渝北再生水厂', city:'重庆市', province:'重庆市', coord:[106.5516,29.5630], status:'运营', kpis:{cap:48, quality:0.98, uptime:0.96, kwh:0.72}},
+        {name:'松江污水三期', city:'上海市', province:'上海市', coord:[121.4737,31.2304], status:'在建', kpis:{cap:35, quality:0.95, uptime:0.90, kwh:0.81}},
+      ],
+      desulfur:[
+        {name:'宁波电厂脱硫', city:'宁波市', province:'浙江省', coord:[121.5503,29.8739], status:'运营', kpis:{so2:0.96, nox:0.93, days:320, catCycle:18, emit:35}},
+        {name:'唐山钢厂超低排', city:'唐山市', province:'河北省', coord:[118.1802,39.6309], status:'运营', kpis:{so2:0.95, nox:0.92, days:310, catCycle:20, emit:40}},
+      ],
+      energy:[
+        {name:'合肥医院EMC', city:'合肥市', province:'安徽省', coord:[117.2272,31.8206], status:'运营', kpis:{save:2.3, cnt:14, uplift:0.16, payback:0.88}},
+        {name:'武汉园区节能改造', city:'武汉市', province:'湖北省', coord:[114.3054,30.5931], status:'在建', kpis:{save:1.1, cnt:7, uplift:0.12, payback:0.52}},
+      ],
+      mna:[
+        {name:'边缘计算公司A', city:'杭州市', province:'浙江省', coord:[120.1551,30.2741], status:'整合中', kpis:{deal:3.2, synergy:0.62, growth:0.35, roic:0.14}},
+        {name:'工业AI公司B', city:'成都市', province:'四川省', coord:[104.0668,30.5728], status:'并购完成', kpis:{deal:5.6, synergy:0.54, growth:0.28, roic:0.12}},
+      ],
+    };
+
+    // 运营指标模板（不同板块动态映射）
+    const opMetricSchemas = {
+      park: [
+        {label:'营业收入(亿)', key:'rev', fmt:v=>v.toFixed(2)},
+        {label:'利润总额(亿)', key:'profit', fmt:v=>v.toFixed(2)},
+        {label:'净资产收益率', key:'roe', fmt:v=> (v*100).toFixed(1)+'%'},
+        {label:'研发投入(亿)', key:'rnd', fmt:v=>v.toFixed(2)},
+        {label:'营业收现率', key:'cash', fmt:v=> (v*100).toFixed(0)+'%'},
+        {label:'全员劳动生产率(万/人)', key:'prod', fmt:v=>v.toFixed(1)},
+        {label:'资产负债率', key:'debt', fmt:v=> (v*100).toFixed(0)+'%'},
+        {label:'年度招商增长率', key:'growth', fmt:v=> (v*100).toFixed(0)+'%'}
+      ],
+      waste:[
+        {label:'营业收入(亿)', key:'rev', fmt:v=>v.toFixed(2)},
+        {label:'利润总额(亿)', key:'profit', fmt:v=>v.toFixed(2)},
+        {label:'净资产收益率', key:'roe', fmt:v=> (v*100).toFixed(1)+'%'},
+        {label:'研发投入(亿)', key:'rnd', fmt:v=>v.toFixed(2)},
+        {label:'出水达标率', key:'quality', fmt:v=> (v*100).toFixed(0)+'%'},
+        {label:'设备运行率', key:'uptime', fmt:v=> (v*100).toFixed(0)+'%'},
+        {label:'资产负债率', key:'debt', fmt:v=> (v*100).toFixed(0)+'%'},
+        {label:'吨水能耗(kWh/吨)', key:'kwh', fmt:v=> v.toFixed(2)}
+      ],
+      desulfur:[
+        {label:'营业收入(亿)', key:'rev', fmt:v=>v.toFixed(2)},
+        {label:'利润总额(亿)', key:'profit', fmt:v=>v.toFixed(2)},
+        {label:'SO₂去除效率', key:'so2', fmt:v=> (v*100).toFixed(0)+'%'},
+        {label:'NOx去除效率', key:'nox', fmt:v=> (v*100).toFixed(0)+'%'},
+        {label:'环保达标天数', key:'days', fmt:v=> v },
+        {label:'排放浓度(mg/m³)', key:'emit', fmt:v=> v },
+        {label:'资产负债率', key:'debt', fmt:v=> (v*100).toFixed(0)+'%'},
+        {label:'研发投入(亿)', key:'rnd', fmt:v=>v.toFixed(2)},
+      ],
+      energy:[
+        {label:'营业收入(亿)', key:'rev', fmt:v=>v.toFixed(2)},
+        {label:'利润总额(亿)', key:'profit', fmt:v=>v.toFixed(2)},
+        {label:'年节能量(万tce)', key:'save', fmt:v=> v.toFixed(2)},
+        {label:'项目数量', key:'cnt', fmt:v=> v },
+        {label:'客户能效提升率', key:'uplift', fmt:v=> (v*100).toFixed(0)+'%'},
+        {label:'EMC回款率', key:'payback', fmt:v=> (v*100).toFixed(0)+'%'},
+        {label:'资产负债率', key:'debt', fmt:v=> (v*100).toFixed(0)+'%'},
+        {label:'研发投入(亿)', key:'rnd', fmt:v=>v.toFixed(2)},
+      ],
+      mna:[
+        {label:'并购项目数', key:'dealCnt', fmt:v=> v },
+        {label:'并购总金额(亿)', key:'dealAmt', fmt:v=> v.toFixed(1)},
+        {label:'技术协同率', key:'synergy', fmt:v=> (v*100).toFixed(0)+'%'},
+        {label:'被投营收增长率', key:'growth', fmt:v=> (v*100).toFixed(0)+'%'},
+        {label:'ROIC', key:'roic', fmt:v=> (v*100).toFixed(1)+'%'},
+        {label:'现金流净额(亿)', key:'cashflow', fmt:v=> v.toFixed(2)},
+        {label:'资产负债率', key:'debt', fmt:v=> (v*100).toFixed(0)+'%'},
+        {label:'研发投入(亿)', key:'rnd', fmt:v=> v.toFixed(2)},
+      ]
+    };
+
+    // 财务指标模板（点击可弹窗趋势）
+    const financeSchemas = {
+      park: [
+        {name:'总投资金额', key:'invest', unit:'亿'},
+        {name:'年度营收', key:'rev', unit:'亿'},
+        {name:'EBITDA利润率', key:'ebitda', unit:'%'},
+        {name:'ROIC', key:'roic', unit:'%'}
+      ],
+      waste:[
+        {name:'政府补贴占比', key:'subsidy', unit:'%'},
+        {name:'单位处理成本', key:'cost', unit:'元/吨'},
+        {name:'现金流净额', key:'cashflow', unit:'亿'},
+        {name:'项目IRR', key:'irr', unit:'%'}
+      ],
+      desulfur:[
+        {name:'运维成本占比', key:'om', unit:'%'},
+        {name:'环保奖励金额', key:'reward', unit:'万'},
+        {name:'项目毛利率', key:'margin', unit:'%'},
+        {name:'应收周转天数', key:'dso', unit:'天'}
+      ],
+      energy:[
+        {name:'节能收益分成', key:'share', unit:'万'},
+        {name:'客户回款率', key:'pay', unit:'%'},
+        {name:'项目NPV', key:'npv', unit:'万'},
+        {name:'合同履约率', key:'fulfill', unit:'%'}
+      ],
+      mna:[
+        {name:'并购总金额', key:'dealAmt', unit:'亿'},
+        {name:'商誉占比', key:'gw', unit:'%'},
+        {name:'估值增长率', key:'valUp', unit:'%'},
+        {name:'投资回收期', key:'paybackY', unit:'年'}
+      ]
+    };
+
+    // 板块级别的汇总指标（简单随机生成以演示联动）
+    function makeBoardMetrics(layerKey){
+      const rnd=(a,b)=> (Math.random()*(b-a)+a);
+      switch(layerKey){
+        case 'park':
+          return {rev:rnd(30,50), profit:rnd(3,6), roe:rnd(.08,.16), rnd:rnd(1,2), cash:rnd(.8,.95), prod:rnd(65,85), debt:rnd(.35,.55), growth:rnd(.1,.3)}
+        case 'waste':
+          return {rev:rnd(12,20), profit:rnd(1.5,3), roe:rnd(.06,.12), rnd:rnd(.4,.9), quality:rnd(.95,.99), uptime:rnd(.9,.98), debt:rnd(.3,.5), kwh:rnd(.65,.9)}
+        case 'desulfur':
+          return {rev:rnd(10,18), profit:rnd(1,2.5), so2:rnd(.93,.98), nox:rnd(.9,.96), days:Math.round(rnd(280,330)), emit:Math.round(rnd(20,45)), debt:rnd(.28,.46), rnd:rnd(.3,.8)}
+        case 'energy':
+          return {rev:rnd(8,16), profit:rnd(.8,2), save:rnd(1.2,3.6), cnt:Math.round(rnd(10,28)), uplift:rnd(.1,.22), payback:rnd(.6,.95), debt:rnd(.25,.42), rnd:rnd(.3,.8)}
+        case 'mna':
+          return {dealCnt:Math.round(rnd(3,8)), dealAmt:rnd(6,12), synergy:rnd(.45,.7), growth:rnd(.2,.4), roic:rnd(.1,.18), cashflow:rnd(1,3), debt:rnd(.2,.4), rnd:rnd(.2,.6)}
+      }
+    }
+
+    function makeFinance(layerKey){
+      const r=(a,b)=> (Math.random()*(b-a)+a);
+      switch(layerKey){
+        case 'park': return {invest:r(80,120), rev:r(30,50), ebitda:r(18,30), roic:r(10,18)}
+        case 'waste': return {subsidy:r(8,15), cost:r(0.8,1.3), cashflow:r(1,3), irr:r(9,14)}
+        case 'desulfur': return {om:r(35,50), reward:r(800,1600), margin:r(18,28), dso:Math.round(r(45,85))}
+        case 'energy': return {share:r(600,1500), pay:r(85,96), npv:r(1500,4000), fulfill:r(88,98)}
+        case 'mna': return {dealAmt:r(6,12), gw:r(28,45), valUp:r(15,35), paybackY:r(2.5,5.5)}
+      }
+    }
+
+    // ---------------- 组件初始化 ----------------
+    const mapEl = document.getElementById('map');
+    const mapChart = echarts.init(mapEl);
+    const trendChart = echarts.init(document.getElementById('trend'));
+    const gaugeChart = echarts.init(document.getElementById('gauge'));
+
+    const modalMask = document.getElementById('modalMask');
+    const modalTitle = document.getElementById('modalTitle');
+    const modalContent = document.getElementById('detailContent');
+    const modalClose = document.getElementById('modalClose');
+
+    let currentLayer = 'park';
+    let mapGeoLoaded = false;
+
+    // 顶部按钮
+    const btns = document.getElementById('layerBtns');
+    layers.forEach(l=>{
+      const b=document.createElement('button');
+      b.className='btn'+(l.key===currentLayer?' active':'');
+      b.textContent=l.name;
+      b.onclick=()=>{currentLayer=l.key;[...btns.children].forEach(x=>x.classList.remove('active'));b.classList.add('active'); refreshAll(); };
+      btns.appendChild(b);
+    });
+
+    // 热力/点位切换
+    document.getElementById('heatToggle').addEventListener('change',()=>renderMap());
+
+    // 载入中国地图（省级边界）
+    fetch('https://geo.datav.aliyun.com/areas_v3/bound/geojson?code=100000_full')
+      .then(r=>r.json())
+      .then(geo=>{
+        echarts.registerMap('china', geo);
+        mapGeoLoaded = true;
+        refreshAll();
+      })
+      .catch(err=>{
+        console.error('地图加载失败', err);
+        alert('中国地图加载失败，请检查网络。');
+      });
+
+    // ---------------- 渲染函数 ----------------
+    function refreshAll(){
+      renderMap();
+      renderOps();
+      renderFinance();
+    }
+
+    function renderMap(){
+      if(!mapGeoLoaded) return;
+      const heatOn = document.getElementById('heatToggle').checked;
+
+      // 构造点位数据
+      const pts = (projects[currentLayer]||[]).map(p=>({
+        name:p.name, value:[...p.coord, 1], raw:p
+      }));
+
+      // 省份聚合（计数 & 简单“投资额”模拟）
+      const provinceAgg = {};
+      (projects[currentLayer]||[]).forEach(p=>{
+        if(!provinceAgg[p.province]) provinceAgg[p.province]={count:0, invest:0};
+        provinceAgg[p.province].count++;
+        provinceAgg[p.province].invest += Math.random()*8+2; // mock
+      });
+      const mapData = Object.entries(provinceAgg).map(([name, v])=>({name, value: heatOn ? v.count : v.invest.toFixed(1)}));
+
+      const series = [
+        {
+          type:'map', map:'china', z:1, roam:true,
+          label:{show:false},
+          itemStyle:{areaColor:'#0f2248', borderColor:'#6ea3ff'},
+          emphasis:{itemStyle:{areaColor:'#2652a8'}},
+          data: mapData, // 用于视觉映射和tooltip
+          tooltip:{
+            formatter:(p)=>{
+              const v = provinceAgg[p.name];
+              if(!v) return `${p.name}<br/>无项目`;
+              return `${p.name}<br/>项目数量：${v.count}<br/>总投资额(估)：${v.invest.toFixed(1)} 亿`;
+            }
+          }
+        }
+      ];
+
+      if(!heatOn){
+        series.push({
+          type:'effectScatter', coordinateSystem:'geo', z:2, rippleEffect:{brushType:'stroke'},
+          symbolSize: 10,
+          data: pts,
+          tooltip:{
+            formatter:(p)=>{
+              const r = p.data.raw;
+              const detail = formatProjectTooltip(currentLayer, r);
+              return `<div style="min-width:220px"><b>${r.name}</b><br/>${r.province} · ${r.city}｜状态：${r.status}<hr style='border:none;height:1px;background:rgba(255,255,255,.15)'>${detail}</div>`
+            }
+          }
+        });
+      }
+
+      const visualMax = heatOn ? Math.max(1, ...mapData.map(d=>Number(d.value)||0)) : Math.max(1, ...mapData.map(d=>Number(d.value)||0));
+
+      mapChart.setOption({
+        backgroundColor:'transparent',
+        geo:{map:'china', roam:true, zoom:1.2, itemStyle:{areaColor:'transparent', borderColor:'transparent'}},
+        visualMap:{
+          min:0, max:visualMax, left:20, bottom:20, calculable:true,
+          text:['高','低'],
+          inRange:{color: heatOn? ['#20335b','#2a78c0','#49c7ff'] : ['#263b6e','#285aa3','#44a5ff']}
+        },
+        series
+      });
+
+      // 点位点击下钻
+      mapChart.off('click');
+      mapChart.on('click', (params)=>{
+        if(params.seriesType==='effectScatter' && params.data?.raw){
+          openProjectDetail(params.data.raw);
+        }
+      });
+    }
+
+    function formatProjectTooltip(layer, r){
+      if(layer==='park'){
+        const {build,tenants,occupancy,growth}=r.kpis;return `在建项目数：${build}<br/>入驻企业：${tenants}<br/>出租率：${(occupancy*100).toFixed(0)}%<br/>年度招商增长率：${(growth*100).toFixed(0)}%`;
+      }
+      if(layer==='waste'){
+        const {cap,quality,uptime,kwh}=r.kpis;return `日均处理量：${cap} 万吨<br/>出水达标率：${(quality*100).toFixed(0)}%<br/>设备运行率：${(uptime*100).toFixed(0)}%<br/>吨水能耗：${kwh} kWh/吨`;
+      }
+      if(layer==='desulfur'){
+        const {so2,nox,days,catCycle,emit}=r.kpis;return `SO₂效率：${(so2*100).toFixed(0)}%｜NOx效率：${(nox*100).toFixed(0)}%<br/>达标天数：${days} 天｜催化剂周期：${catCycle} 月<br/>排放浓度：${emit} mg/m³`;
+      }
+      if(layer==='energy'){
+        const {save,cnt,uplift,payback}=r.kpis;return `年节能量：${save} 万tce<br/>项目数量：${cnt}<br/>能效提升率：${(uplift*100).toFixed(0)}%<br/>EMC回款率：${(payback*100).toFixed(0)}%`;
+      }
+      if(layer==='mna'){
+        const {deal,synergy,growth,roic}=r.kpis;return `并购金额：${deal.toFixed(1)} 亿<br/>技术协同率：${(synergy*100).toFixed(0)}%<br/>营收增长率：${(growth*100).toFixed(0)}%<br/>ROIC：${(roic*100).toFixed(1)}%`;
+      }
+      return '';
+    }
+
+    // 运营指标渲染（KPI卡片 + 仪表盘 + 趋势）
+    function renderOps(){
+      const wrap = document.getElementById('coreKpis');
+      wrap.innerHTML='';
+      const schema = opMetricSchemas[currentLayer];
+      const metrics = makeBoardMetrics(currentLayer);
+
+      schema.forEach((s,i)=>{
+        const val = metrics[s.key] ?? (Math.random()*100);
+        const card = document.createElement('div');
+        card.className='kpi';
+        card.innerHTML = `
+          <div class="label">${s.label}</div>
+          <div class="value">${s.fmt(val)}</div>
+          <div class="delta" style="color:${i%3===0?'var(--ok)':i%3===1?'var(--warn)':'var(--bad)'}">环比 ${ (Math.random()*10-2).toFixed(1) }%</div>
+          <div class="progress"><span style="width:${Math.min(100, Math.round((Math.random()*30+60)))}%"></span></div>
+        `;
+        wrap.appendChild(card);
+      });
+
+      // 仪表盘：以“计划完成率”示例
+      const gaugeVal = Math.round(Math.random()*25+65);
+      gaugeChart.setOption({
+        series:[{
+          type:'gauge', startAngle:220, endAngle:-40, min:0, max:100, splitNumber:5,
+          axisLine:{lineStyle:{width:10}},
+          pointer:{show:true,length:'60%'},
+          title:{offsetCenter:[0,'75%'], color:'#cfe6ff', fontSize:12},
+          detail:{formatter:'{value}%', color:'#fff', fontSize:22, offsetCenter:[0,'40%']},
+          data:[{value:gaugeVal, name:'计划完成率'}]
+        }]
+      });
+
+      // 趋势折线：近12月营业收入
+      const months=[...Array(12).keys()].map(i=>`${i+1}月`);
+      const vals = months.map(()=> (Math.random()*5+2).toFixed(2));
+      trendChart.setOption({
+        tooltip:{trigger:'axis'},
+        grid:{left:40,right:20,bottom:30,top:26},
+        xAxis:{type:'category',data:months,axisLine:{lineStyle:{color:'#7aa7ff'}}},
+        yAxis:{type:'value',axisLine:{lineStyle:{color:'#7aa7ff'}}, splitLine:{lineStyle:{color:'rgba(255,255,255,.08)'}}},
+        series:[{type:'line',smooth:true,areaStyle:{opacity:.12},data:vals}]
+      });
+    }
+
+    // 财务指标卡片
+    function renderFinance(){
+      const wrap=document.getElementById('financeCards');
+      wrap.innerHTML='';
+      const schema = financeSchemas[currentLayer];
+      const data = makeFinance(currentLayer);
+      schema.forEach(item=>{
+        const val = data[item.key];
+        const show = item.unit==='%'? `${val.toFixed(1)}%` : `${Number(val).toFixed( item.unit.includes('年')?1 : (item.unit.includes('天')?0: (item.unit.includes('元')?2:1)))} ${item.unit.replace('%','')}`;
+        const card=document.createElement('div');
+        card.className='fin-card';
+        card.innerHTML=`<div class='name'>${item.name}</div><div class='val'>${show}</div>`;
+        card.onclick=()=> openFinanceTrend(item.name);
+        wrap.appendChild(card);
+      });
+    }
+
+    // 打开项目详情（穿透）
+    function openProjectDetail(proj){
+      modalTitle.textContent = `项目详情 · ${proj.name}`;
+      modalContent.innerHTML = `
+        <div id='projectDetail'>
+          <div class='detail-list'>
+            <h5>基本信息</h5>
+            <ul>
+              <li>所在地：${proj.province} · ${proj.city}</li>
+              <li>投产状态：${proj.status}</li>
+              <li>所属板块：${layers.find(l=>l.key===currentLayer).name}</li>
+            </ul>
+            <h5>关键指标</h5>
+            <ul>
+              ${projectDetailListHTML(currentLayer, proj.kpis)}
+            </ul>
+          </div>
+          <div>
+            <div id='detailChart' style='height:320px'></div>
+          </div>
+        </div>
+      `;
+      showModal();
+      // 构造一个项目的四象限图/趋势
+      const dc = echarts.init(document.getElementById('detailChart'));
+      const xs=[...Array(12).keys()].map(i=>`${i+1}月`);
+      dc.setOption({
+        tooltip:{trigger:'axis'},
+        grid:{left:40,right:20,bottom:30,top:26},
+        xAxis:{type:'category',data:xs},
+        yAxis:{type:'value'},
+        series:[{type:'bar',data: xs.map(()=> (Math.random()*100+50).toFixed(0))}]
+      });
+    }
+
+    function projectDetailListHTML(layer, k){
+      if(layer==='park') return `
+        <li>在建项目数：${k.build}</li>
+        <li>已入驻企业数：${k.tenants}</li>
+        <li>园区出租率：${(k.occupancy*100).toFixed(0)}%</li>
+        <li>年度招商增长率：${(k.growth*100).toFixed(0)}%</li>`;
+      if(layer==='waste') return `
+        <li>日均处理量：${k.cap} 万吨</li>
+        <li>出水达标率：${(k.quality*100).toFixed(0)}%</li>
+        <li>设备运行率：${(k.uptime*100).toFixed(0)}%</li>
+        <li>吨水能耗：${k.kwh} kWh/吨</li>`;
+      if(layer==='desulfur') return `
+        <li>SO₂去除效率：${(k.so2*100).toFixed(0)}%</li>
+        <li>NOx去除效率：${(k.nox*100).toFixed(0)}%</li>
+        <li>环保达标天数：${k.days} 天</li>
+        <li>排放浓度：${k.emit} mg/m³</li>`;
+      if(layer==='energy') return `
+        <li>年节能量：${k.save} 万tce</li>
+        <li>节能项目数量：${k.cnt}</li>
+        <li>客户能效提升率：${(k.uplift*100).toFixed(0)}%</li>
+        <li>EMC回款率：${(k.payback*100).toFixed(0)}%</li>`;
+      if(layer==='mna') return `
+        <li>并购项目数：${(k.deal||0).toFixed?k.deal.toFixed(1):k.deal}</li>
+        <li>技术协同率：${(k.synergy*100).toFixed(0)}%</li>
+        <li>被投营收增长率：${(k.growth*100).toFixed(0)}%</li>
+        <li>ROIC：${(k.roic*100).toFixed(1)}%</li>`;
+      return '';
+    }
+
+    // 打开财务指标趋势
+    function openFinanceTrend(title){
+      modalTitle.textContent = `财务指标 · ${title}`;
+      modalContent.innerHTML = `<div id='detailChart'></div>`;
+      showModal();
+      const dc = echarts.init(document.getElementById('detailChart'));
+      const xs=[...Array(18).keys()].map(i=>`T-${18-i}`);
+      dc.setOption({
+        tooltip:{trigger:'axis'},
+        grid:{left:40,right:20,bottom:30,top:26},
+        xAxis:{type:'category',data:xs},
+        yAxis:{type:'value',splitLine:{lineStyle:{color:'rgba(255,255,255,.08)'}}},
+        series:[{type:'line',smooth:true,areaStyle:{opacity:.12},data: xs.map(()=> (Math.random()*100+20).toFixed(0))}]
+      });
+    }
+
+    // Modal开关
+    function showModal(){modalMask.style.display='flex'}
+    modalClose.onclick=()=> modalMask.style.display='none';
+    modalMask.addEventListener('click',(e)=>{ if(e.target===modalMask) modalMask.style.display='none'; });
+
+    // resize
+    window.addEventListener('resize',()=>{ mapChart.resize(); trendChart.resize(); gaugeChart.resize(); });
+  </script>
+</body>
+</html>
